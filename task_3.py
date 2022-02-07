@@ -24,5 +24,7 @@ def host_range_ping_tab(ip_str_list):
     headers = ['Reachable', 'Unreachble']
     print(tabulate(ip_list_sorted, headers))
 
-ip_list = ['0.0.0.0', '456.0.0.1', 'ya.ru', 'ab57.ru']
-host_range_ping_tab(ip_list)
+
+if __name__ == "__main__":
+    ip_list = ['0.0.0.0', '456.0.0.1', 'ya.ru', 'ab57.ru']
+    host_range_ping_tab(ip_list)

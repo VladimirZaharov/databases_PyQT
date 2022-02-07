@@ -1,7 +1,4 @@
-from task_1 import host_ping
-
-
-some_ip = '198.162.10.24'
+from task_1 import host_ping_lst
 
 
 def host_range_ping(ip_str):
@@ -11,4 +8,6 @@ def host_range_ping(ip_str):
     return ip_list
 
 
-host_ping(host_range_ping(some_ip))
+if __name__ == "__main__":
+    some_ip = '198.162.10.24'
+    host_ping_lst(host_range_ping(some_ip))
