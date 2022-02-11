@@ -1,1 +1,5 @@
 .idea
+logs/client.log
+logs/func_usage.log
+logs/server.log
+logs/server.log.2022-02-10
