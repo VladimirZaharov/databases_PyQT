@@ -1,13 +1,9 @@
-import sys
-import json
 import socket
 import time
-import argparse
-import logging
 import threading
 import logs.config_client_log
-from common.variables import *
 from common.utils import *
+from common.variables import *
 from errors import IncorrectDataRecivedError, ReqFieldMissingError, ServerError
 from decos import log
 
@@ -119,27 +115,6 @@ def process_response_ans(message):
         elif message[RESPONSE] == 400:
             raise ServerError(f'400 : {message[ERROR]}')
     raise ReqFieldMissingError(RESPONSE)
-
-
-# Парсер аргументов коммандной строки
-@log
-def arg_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('addr', default=DEFAULT_IP_ADDRESS, nargs='?')
-    parser.add_argument('port', default=DEFAULT_PORT, type=int, nargs='?')
-    parser.add_argument('-n', '--name', default=None, nargs='?')
-    namespace = parser.parse_args(sys.argv[1:])
-    server_address = namespace.addr
-    server_port = namespace.port
-    client_name = namespace.name
-
-    # проверим подходящий номер порта
-    if not 1023 < server_port < 65536:
-        logger.critical(
-            f'Попытка запуска клиента с неподходящим номером порта: {server_port}. Допустимы адреса с 1024 до 65535. Клиент завершается.')
-        exit(1)
-
-    return server_address, server_port, client_name
 
 
 def main():

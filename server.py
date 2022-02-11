@@ -1,8 +1,4 @@
 import socket
-import sys
-import argparse
-import json
-import logging
 import select
 import time
 import logs.config_server_log
@@ -66,28 +62,10 @@ def process_message(message, names, listen_socks):
             f'Пользователь {message[DESTINATION]} не зарегистрирован на сервере, отправка сообщения невозможна.')
 
 
-# Парсер аргументов коммандной строки.
-@log
-def arg_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-p', default=DEFAULT_PORT, type=int, nargs='?')
-    parser.add_argument('-a', default='', nargs='?')
-    namespace = parser.parse_args(sys.argv[1:])
-    listen_address = namespace.a
-    listen_port = namespace.p
-
-    # проверка получения корретного номера порта для работы сервера.
-    if not 1023 < listen_port < 65536:
-        logger.critical(
-            f'Попытка запуска сервера с указанием неподходящего порта {listen_port}. Допустимы адреса с 1024 до 65535.')
-        exit(1)
-
-    return listen_address, listen_port
-
 
 def main():
     # Загрузка параметров командной строки, если нет параметров, то задаём значения по умоланию.
-    listen_address, listen_port = arg_parser()
+    listen_address, listen_port, temp_arg = arg_parser()
 
     logger.info(
         f'Запущен сервер, порт для подключений: {listen_port} , '
