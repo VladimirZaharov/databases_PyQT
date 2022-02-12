@@ -2,6 +2,7 @@ import logging
 server_logger = logging.getLogger('server')
 client_logger = logging.getLogger('client')
 
+
 # Дескриптор для описания порта:
 class Port:
     def __set__(self, instance, value):
