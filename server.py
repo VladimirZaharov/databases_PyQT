@@ -7,12 +7,14 @@ from errors import IncorrectDataRecivedError
 from common.variables import *
 from common.utils import *
 from decos import log
+from metaclasses import ServerMaker
+
 
 # Инициализация логирования сервера.
 logger = logging.getLogger('server')
 
 
-class Server:
+class Server(metaclass=ServerMaker):
     port = Port()
 
     def __init__(self):

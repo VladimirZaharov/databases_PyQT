@@ -9,10 +9,12 @@ from errors import IncorrectDataRecivedError, ReqFieldMissingError, ServerError
 from decos import log
 
 # Инициализация клиентского логера
+from metaclasses import ClientMaker, ClientBaseMaker
+
 logger = logging.getLogger('client')
 
 
-class ClientSender(threading.Thread):
+class ClientSender(threading.Thread, metaclass=ClientMaker):
     def __init__(self, account_name, sock):
         self.account_name = account_name
         self.sock = sock
@@ -77,7 +79,7 @@ class ClientSender(threading.Thread):
 
 
 # Класс-приёмник сообщений с сервера. Принимает сообщения, выводит в консоль.
-class ClientReader(threading.Thread):
+class ClientReader(threading.Thread, metaclass=ClientMaker):
     def __init__(self, account_name, sock):
         self.account_name = account_name
         self.sock = sock
@@ -102,7 +104,7 @@ class ClientReader(threading.Thread):
                 break
 
 
-class ClientBase():
+class ClientBase(metaclass=ClientBaseMaker):
     port = Port()
 
     def __init__(self):
