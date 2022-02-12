@@ -6,7 +6,9 @@ client_logger = logging.getLogger('client')
 # Дескриптор для описания порта:
 class Port:
     def __set__(self, instance, value):
-        if 1023 < value < 65536:
+        if value is None:
+            instance.__dict__[self.name] = 7777
+        elif 1023 < value < 65536:
             instance.__dict__[self.name] = value
         else:
             server_logger.critical(
