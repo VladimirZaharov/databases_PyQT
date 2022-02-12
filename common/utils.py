@@ -36,21 +36,14 @@ def send_message(sock, message):
 
 # Парсер аргументов коммандной строки
 @log
-def arg_parser():
+def arg_parser(server=True):
     parser = argparse.ArgumentParser()
-    parser.add_argument('addr', default=DEFAULT_IP_ADDRESS, nargs='?')
-    parser.add_argument('port', default=DEFAULT_PORT, type=int, nargs='?')
+    parser.add_argument('-a', default=DEFAULT_IP_ADDRESS if server == False else '', nargs='?')
+    parser.add_argument('-p', default=DEFAULT_PORT, type=int, nargs='?')
     parser.add_argument('-n', '--name', default=None, nargs='?')
     namespace = parser.parse_args(sys.argv[1:])
-    server_address = namespace.addr
-    server_port = namespace.port
+    server_address = namespace.a
+    server_port = namespace.p
     client_name = namespace.name
-
-    # проверим подходящий номер порта
-    if not 1023 < server_port < 65536:
-        logger.critical(
-            f'Попытка запуска клиента с неподходящим номером порта: {server_port}. Допустимы адреса с 1024 до 65535. Клиент завершается.')
-        exit(1)
-
     return server_address, server_port, client_name
 

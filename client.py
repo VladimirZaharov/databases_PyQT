@@ -122,7 +122,7 @@ def main():
     print('Консольный месседжер. Клиентский модуль.')
 
     # Загружаем параметы коммандной строки
-    server_address, server_port, client_name = arg_parser()
+    server_address, server_port, client_name = arg_parser(False)
 
     # Если имя пользователя не было задано, необходимо запросить пользователя.
     if not client_name:
