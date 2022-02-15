@@ -1,5 +1,6 @@
 import socket
 import select
+import threading
 import time
 import logs.config_server_log
 from descriptors import Port
@@ -8,13 +9,15 @@ from common.variables import *
 from common.utils import *
 from decos import log
 from metaclasses import ServerMaker
+from server_database import ServerDatabase
 
 
 # Инициализация логирования сервера.
+
 logger = logging.getLogger('server')
 
 
-class Server(metaclass=ServerMaker):
+class Server(threading.Thread, metaclass=ServerMaker):
     port = Port()
 
     def __init__(self):
@@ -31,6 +34,10 @@ class Server(metaclass=ServerMaker):
         # Словарь содержащий сопоставленные имена и соответствующие им сокеты.
         self.names = dict()
 
+        # Подключаем базу.
+        self.database = ServerDatabase()
+        super().__init__()
+
 
     # Обработчик сообщений от клиентов, принимает словарь - сообщение от клиента, проверяет корректность, отправляет
     #     словарь-ответ в случае необходимости.
@@ -42,6 +49,8 @@ class Server(metaclass=ServerMaker):
             # Если такой пользователь ещё не зарегистрирован, регистрируем, иначе отправляем ответ и завершаем соединение.
             if message[USER][ACCOUNT_NAME] not in self.names.keys():
                 self.names[message[USER][ACCOUNT_NAME]] = client
+                ip_adr, port = client.getpeername()
+                self.database.client_login(message[USER][ACCOUNT_NAME], ip_adr, port)
                 send_message(client, RESPONSE_200)
             else:
                 response = RESPONSE_400
@@ -57,9 +66,9 @@ class Server(metaclass=ServerMaker):
             return
         # Если клиент выходит
         elif ACTION in message and message[ACTION] == EXIT and ACCOUNT_NAME in message:
-            self.clients.remove(self.names[ACCOUNT_NAME])
-            self.names[ACCOUNT_NAME].close()
-            del self.names[ACCOUNT_NAME]
+            self.clients.remove(self.names[message[ACCOUNT_NAME]])
+            self.names[message[ACCOUNT_NAME]].close()
+            del self.names[message[ACCOUNT_NAME]]
             return
         # Иначе отдаём Bad request
         else:
@@ -75,6 +84,7 @@ class Server(metaclass=ServerMaker):
     def process_message(self, message):
         if message[DESTINATION] in self.names and self.names[message[DESTINATION]] in self.send_data_lst:
             send_message(self.names[message[DESTINATION]], message)
+            self.database.client_send_message(message[SENDER], message[DESTINATION], message[MESSAGE_TEXT])
             logger.info(f'Отправлено сообщение пользователю {message[DESTINATION]} от пользователя {message[SENDER]}.')
         elif message[DESTINATION] in self.names and self.names[message[DESTINATION]] not in self.send_data_lst:
             raise ConnectionError
