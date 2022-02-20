@@ -28,6 +28,7 @@ ERROR = 'error'
 MESSAGE = 'message'
 MESSAGE_TEXT = 'mess_text'
 EXIT = 'exit'
+GET_CLIENTS = 'get_clients'
 
 # Словари - ответы:
 # 200

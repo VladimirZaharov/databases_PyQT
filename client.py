@@ -1,7 +1,10 @@
+import configparser
+import os
 import socket
 import time
 import threading
 import logs.config_client_log
+from client_database import ClientDatabase
 from common.utils import *
 from common.variables import *
 from descriptors import Port
@@ -13,9 +16,14 @@ from metaclasses import ClientMaker, ClientBaseMaker
 
 logger = logging.getLogger('client')
 
+sock_lock = threading.Lock()
+database_lock = threading.Lock()
+
+registered_clients = []
 
 class ClientSender(threading.Thread, metaclass=ClientMaker):
-    def __init__(self, account_name, sock):
+    def __init__(self, account_name, sock, database):
+        self.database = database
         self.account_name = account_name
         self.sock = sock
         super().__init__()
@@ -35,6 +43,7 @@ class ClientSender(threading.Thread, metaclass=ClientMaker):
     def create_message(self):
         to = input('Введите получателя сообщения: ')
         message = input('Введите сообщение для отправки: ')
+
         message_dict = {
             ACTION: MESSAGE,
             SENDER: self.account_name,
@@ -45,6 +54,7 @@ class ClientSender(threading.Thread, metaclass=ClientMaker):
         logger.debug(f'Сформирован словарь сообщения: {message_dict}')
         try:
             send_message(self.sock, message_dict)
+            self.database.add_message('Me', to, message)
             logger.info(f'Отправлено сообщение для пользователя {to}')
         except:
             logger.critical('Потеряно соединение с сервером.')
@@ -56,31 +66,104 @@ class ClientSender(threading.Thread, metaclass=ClientMaker):
         self.print_help()
         while True:
             command = input('Введите команду: ')
-            if command == 'message':
-                self.create_message()
-            elif command == 'help':
-                self.print_help()
-            elif command == 'exit':
-                send_message(self.sock, self.create_exit_message())
-                print('Завершение соединения.')
-                logger.info('Завершение работы по команде пользователя.')
-                # Задержка неоходима, чтобы успело уйти сообщение о выходе
-                time.sleep(0.5)
-                break
-            else:
-                print('Команда не распознана, попробойте снова. help - вывести поддерживаемые команды.')
+            match command:
+                case 'message':
+                    self.create_message()
+                    time.sleep(1)
+                case 'help':
+                    self.print_help()
+                    time.sleep(1)
+                case 'contacts':
+                    self.contacts_loop()
+                    time.sleep(1)
+                case 'exit':
+                    send_message(self.sock, self.create_exit_message())
+                    print('Завершение соединения.')
+                    logger.info('Завершение работы по команде пользователя.')
+                    # Задержка неоходима, чтобы успело уйти сообщение о выходе
+                    time.sleep(0.5)
+                    break
+
+    def print_contacts(self, contacts):
+        if contacts == {}:
+            return 'У Вас нет добавленных контактов'
+        else:
+            contacts_str = ''
+            for name, is_friend in contacts.items():
+                contacts_str += f' {name} {is_friend} |'
+            return contacts_str
+
+    def contacts_loop(self):
+        while True:
+            print('Вы находитесь в меню работы с контатами!')
+            print("help - вывести подсказки по командам")
+            print('contacts - вывести список зарегистрированных клиентов и контактов')
+            print('add - добавить клиента в контакт')
+            print('del - удалить клиента из контактов')
+            print('exit - выйти в главное меню')
+            command = input('Введите команду: ')
+            match command:
+                case 'help':
+                    continue
+                case 'contacts':
+                    with sock_lock:
+                        send_message(self.sock, self.get_clients_message())
+                    time.sleep(1)
+                    with database_lock:
+                        contacts = self.database.get_contacts()
+                        print(f'Ваши контакты: {self.print_contacts(contacts)}')
+
+                    time.sleep(1)
+                case 'add':
+                    with sock_lock:
+                        send_message(self.sock, self.get_clients_message())
+                    time.sleep(1)
+                    name_to_add = input('Введите имя из списка для добавления: ')
+                    if name_to_add in registered_clients:
+                        self.database.add_contact(name_to_add)
+                        print(f'{name_to_add} добавлен')
+                    else:
+                        print(f'{name_to_add} не зарегистрирован в системе')
+                    time.sleep(1)
+
+                case 'del':
+                    with database_lock:
+                        contacts = self.database.get_contacts()
+                        print(self.print_contacts(contacts))
+                    time.sleep(0.5)
+                    name_to_del = input('Введите имя из списка для удаления: ')
+                    if name_to_del in contacts:
+                        self.database.del_contact(name_to_del)
+                        print(f'{name_to_del} удален')
+                    else:
+                        print(f'{name_to_del} не зарегистрирован в контактах')
+                    time.sleep(1)
+                case 'exit':
+                    self.print_help()
+                    break
+
+    def get_clients_message(self):
+        return {
+            ACTION: GET_CLIENTS,
+            TIME: time.time(),
+            ACCOUNT_NAME: self.account_name
+        }
+
 
     # Функция выводящяя справку по использованию.
     def print_help(self):
         print('Поддерживаемые команды:')
         print('message - отправить сообщение. Кому и текст будет запрошены отдельно.')
         print('help - вывести подсказки по командам')
+        print('contacts - вывести список клиентов, клиентов в списке контактов')
         print('exit - выход из программы')
+        print('')
 
 
 # Класс-приёмник сообщений с сервера. Принимает сообщения, выводит в консоль.
 class ClientReader(threading.Thread, metaclass=ClientMaker):
-    def __init__(self, account_name, sock):
+    def __init__(self, account_name, sock, database):
+        self.database = database
         self.account_name = account_name
         self.sock = sock
         super().__init__()
@@ -93,8 +176,14 @@ class ClientReader(threading.Thread, metaclass=ClientMaker):
                 message = get_message(self.sock)
                 if ACTION in message and message[ACTION] == MESSAGE and SENDER in message and DESTINATION in message \
                         and MESSAGE_TEXT in message and message[DESTINATION] == self.account_name:
+                    self.database.add_message(message[SENDER], 'Me', message[MESSAGE_TEXT])
                     print(f'\nПолучено сообщение от пользователя {message[SENDER]}:\n{message[MESSAGE_TEXT]}')
                     logger.info(f'Получено сообщение от пользователя {message[SENDER]}:\n{message[MESSAGE_TEXT]}')
+                elif GET_CLIENTS in message:
+                    registered_clients.clear()
+                    for clients in message[GET_CLIENTS]:
+                        registered_clients.append(clients)
+                    print(f'Зарегистрированные клиенты: {registered_clients}')
                 else:
                     logger.error(f'Получено некорректное сообщение с сервера: {message}')
             except IncorrectDataRecivedError:
@@ -108,11 +197,17 @@ class ClientBase(metaclass=ClientBaseMaker):
     port = Port()
 
     def __init__(self):
+        config = configparser.ConfigParser()
+
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        config.read(f"{dir_path}/{'client.ini'}")
         # Загрузка параметров командной строки, если нет параметров, то задаём значения по умоланию.
-        self.addr, self.port, self.client_name = arg_parser(False)
+        self.addr, self.port, self.client_name = arg_parser(config['SETTINGS']['Default_port'],
+                                                            config['SETTINGS']['Listen_Address'])
         # Если имя пользователя не было задано, необходимо запросить пользователя.
         if self.client_name is None:
             self.client_name = input('Введите имя пользователя: ')
+        self.database = ClientDatabase(self.client_name)
 
     # Функция разбирает ответ сервера на сообщение о присутствии, возращает 200 если все ОК или генерирует исключение при\
     # ошибке.
@@ -172,12 +267,12 @@ class ClientBase(metaclass=ClientBaseMaker):
         else:
             # Если соединение с сервером установлено корректно, запускаем клиенский процесс приёма сообщний
 
-            receiver = ClientReader(self.client_name, transport)
+            receiver = ClientReader(self.client_name, transport, self.database)
             receiver.daemon = True
             receiver.start()
 
             # затем запускаем отправку сообщений и взаимодействие с пользователем.
-            user_interface = ClientSender(self.client_name, transport)
+            user_interface = ClientSender(self.client_name, transport, self.database)
             user_interface.daemon = True
             user_interface.start()
             logger.debug('Запущены процессы')

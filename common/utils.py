@@ -36,10 +36,10 @@ def send_message(sock, message):
 
 # Парсер аргументов коммандной строки
 @log
-def arg_parser(server=True):
+def arg_parser(default_port, default_ip):
     parser = argparse.ArgumentParser()
-    parser.add_argument('-a', default=DEFAULT_IP_ADDRESS if server == False else '', nargs='?')
-    parser.add_argument('-p', default=None, type=int, nargs='?')
+    parser.add_argument('-a', default=default_ip, nargs='?')
+    parser.add_argument('-p', default=default_port, type=int, nargs='?')
     parser.add_argument('-n', '--name', default=None, nargs='?')
     namespace = parser.parse_args(sys.argv[1:])
     server_address = namespace.a
