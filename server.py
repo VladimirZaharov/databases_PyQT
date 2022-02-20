@@ -1,7 +1,13 @@
+import configparser
+import os
 import socket
 import select
 import threading
 import time
+from PyQt5.QtWidgets import QApplication, QMessageBox
+from PyQt5.QtCore import QTimer
+from server_gui import MainWindow, gui_create_model, HistoryWindow, create_stat_model, ConfigWindow
+from PyQt5.QtGui import QStandardItemModel, QStandardItem
 import logs.config_server_log
 from descriptors import Port
 from errors import IncorrectDataRecivedError
@@ -16,15 +22,17 @@ from server_database import ServerDatabase
 
 logger = logging.getLogger('server')
 
+new_connection = False
+conflag_lock = threading.Lock()
 
 class Server(threading.Thread, metaclass=ServerMaker):
     port = Port()
 
-    def __init__(self):
+    def __init__(self, port, ip_addr, database):
         # Параметры подключения
         # Загрузка параметров командной строки, если нет параметров, то задаём значения по умоланию.
-        self.addr, self.port, temp_arg = arg_parser()
-
+        self.addr = ip_addr
+        self.port = port
         # Список подключённых клиентов.
         self.clients = []
 
@@ -35,7 +43,7 @@ class Server(threading.Thread, metaclass=ServerMaker):
         self.names = dict()
 
         # Подключаем базу.
-        self.database = ServerDatabase()
+        self.database = database
         super().__init__()
 
 
@@ -66,10 +74,15 @@ class Server(threading.Thread, metaclass=ServerMaker):
             return
         # Если клиент выходит
         elif ACTION in message and message[ACTION] == EXIT and ACCOUNT_NAME in message:
+            self.database.client_logout(message[ACCOUNT_NAME])
             self.clients.remove(self.names[message[ACCOUNT_NAME]])
             self.names[message[ACCOUNT_NAME]].close()
             del self.names[message[ACCOUNT_NAME]]
             return
+        elif ACTION in message and message[ACTION] == GET_CLIENTS and ACCOUNT_NAME in message:
+            client_list = self.database.get_clients()
+            response = {GET_CLIENTS: client_list}
+            send_message(client, response)
         # Иначе отдаём Bad request
         else:
             response = RESPONSE_400
@@ -106,7 +119,7 @@ class Server(threading.Thread, metaclass=ServerMaker):
         # Слушаем порт
         self.transport.listen(MAX_CONNECTIONS)
 
-    def main_loop(self):
+    def run(self):
         # Инициализация Сокета
         self.init_socket()
 
@@ -153,9 +166,100 @@ class Server(threading.Thread, metaclass=ServerMaker):
 
 
 def main():
+    config = configparser.ConfigParser()
+
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    config.read(f"{dir_path}/{'server.ini'}")
+
+    ip_addr, port, temp_arg = arg_parser(config['SETTINGS']['Default_port'],
+                                         config['SETTINGS']['Listen_Address'])
+
+    database = ServerDatabase(os.path.join(
+            config['SETTINGS']['Database_path'],
+            config['SETTINGS']['Database_file']))
     # Основной цикл программы сервера
-    server = Server()
-    server.main_loop()
+    server = Server(port, ip_addr, database)
+    server.deamon = True
+    server.start()
+
+    # server_app = QApplication(sys.argv)
+    # main_window = MainWindow()
+    #
+    # # Инициализируем параметры в окна
+    # main_window.statusBar().showMessage('Server Working')
+    # main_window.active_clients_table.setModel(gui_create_model(database))
+    # main_window.active_clients_table.resizeColumnsToContents()
+    # main_window.active_clients_table.resizeRowsToContents()
+    #
+    # # Функция, обновляющая список подключённых, проверяет флаг подключения, и
+    # # если надо обновляет список
+    # def list_update():
+    #     global new_connection
+    #     if new_connection:
+    #         main_window.active_clients_table.setModel(
+    #             gui_create_model(database))
+    #         main_window.active_clients_table.resizeColumnsToContents()
+    #         main_window.active_clients_table.resizeRowsToContents()
+    #         with conflag_lock:
+    #             new_connection = False
+    #
+    # # Функция, создающая окно со статистикой клиентов
+    # def show_statistics():
+    #     global stat_window
+    #     stat_window = HistoryWindow()
+    #     stat_window.history_table.setModel(create_stat_model(database))
+    #     stat_window.history_table.resizeColumnsToContents()
+    #     stat_window.history_table.resizeRowsToContents()
+    #     stat_window.show()
+    #
+    # # Функция создающяя окно с настройками сервера.
+    # def server_config():
+    #     global config_window
+    #     # Создаём окно и заносим в него текущие параметры
+    #     config_window = ConfigWindow()
+    #     config_window.db_path.insert(config['SETTINGS']['Database_path'])
+    #     config_window.db_file.insert(config['SETTINGS']['Database_file'])
+    #     config_window.port.insert(config['SETTINGS']['Default_port'])
+    #     config_window.ip.insert(config['SETTINGS']['Listen_Address'])
+    #     config_window.save_btn.clicked.connect(save_server_config)
+    #
+    # # Функция сохранения настроек
+    # def save_server_config():
+    #     global config_window
+    #     message = QMessageBox()
+    #     config['SETTINGS']['Database_path'] = config_window.db_path.text()
+    #     config['SETTINGS']['Database_file'] = config_window.db_file.text()
+    #     try:
+    #         port = int(config_window.port.text())
+    #     except ValueError:
+    #         message.warning(config_window, 'Ошибка', 'Порт должен быть числом')
+    #     else:
+    #         config['SETTINGS']['Listen_Address'] = config_window.ip.text()
+    #         if 1023 < port < 65536:
+    #             config['SETTINGS']['Default_port'] = str(port)
+    #             print(port)
+    #             with open('server.ini', 'w') as conf:
+    #                 config.write(conf)
+    #                 message.information(
+    #                     config_window, 'OK', 'Настройки успешно сохранены!')
+    #         else:
+    #             message.warning(
+    #                 config_window,
+    #                 'Ошибка',
+    #                 'Порт должен быть от 1024 до 65536')
+    #
+    # # Таймер, обновляющий список клиентов 1 раз в секунду
+    # timer = QTimer()
+    # timer.timeout.connect(list_update)
+    # timer.start(1000)
+    #
+    # # Связываем кнопки с процедурами
+    # main_window.refresh_button.triggered.connect(list_update)
+    # main_window.show_history_button.triggered.connect(show_statistics)
+    # main_window.config_btn.triggered.connect(server_config)
+    #
+    # # Запускаем GUI
+    # server_app.exec_()
 
 
 if __name__ == '__main__':
