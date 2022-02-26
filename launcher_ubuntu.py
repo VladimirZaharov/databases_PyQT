@@ -1,5 +1,5 @@
 """
-It is a launcher for starting subprocesses for server and clients of two types: senders and listeners.
+It is a launcher for starting subprocesses for server_dist and clients of two types: senders and listeners.
 for more information:
 https://stackoverflow.com/questions/67348716/kill-process-do-not-kill-the-subprocess-and-do-not-close-a-terminal-window
 """
@@ -32,7 +32,7 @@ while True:
     elif action == "s":
         process.append(get_subprocess("server.py"))
 
-        for i in range(3):
+        for i in range(2):
             process.append(get_subprocess(f"client.py -n test{i+1}"))
 
     elif action == "x":
