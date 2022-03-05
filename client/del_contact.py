@@ -1,25 +1,27 @@
 import sys
 import logging
 
-sys.path.append('../')
 from PyQt5.QtWidgets import QDialog, QLabel, QComboBox, QPushButton, QApplication
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 
+
 logger = logging.getLogger('client_dist')
 
 
-# Диалог выбора контакта для удаления
 class DelContactDialog(QDialog):
+    """
+    Диалог удаления контакта. Предлагает текущий список контактов,
+    не имеет обработчиков для действий.
+    """
+
     def __init__(self, database):
         super().__init__()
         self.database = database
 
         self.setFixedSize(350, 120)
         self.setWindowTitle('Выберите контакт для удаления:')
-        # Удаляем диалог, если окно было закрыто преждевременно
         self.setAttribute(Qt.WA_DeleteOnClose)
-        # Делаем это окно модальным (т.е. поверх других)
         self.setModal(True)
 
         self.selector_label = QLabel('Выберите контакт для удаления:', self)
@@ -29,8 +31,6 @@ class DelContactDialog(QDialog):
         self.selector = QComboBox(self)
         self.selector.setFixedSize(200, 20)
         self.selector.move(10, 30)
-        # заполнитель контактов для удаления
-        self.selector.addItems(sorted(self.database.get_contacts()))
 
         self.btn_ok = QPushButton('Удалить', self)
         self.btn_ok.setFixedSize(100, 30)
@@ -41,16 +41,12 @@ class DelContactDialog(QDialog):
         self.btn_cancel.move(230, 60)
         self.btn_cancel.clicked.connect(self.close)
 
+        # заполнитель контактов для удаления
+        self.selector.addItems(sorted(self.database.get_contacts()))
+
 
 if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    from database import ClientDatabase
-    database = ClientDatabase('test1')
-    window = DelContactDialog(database)
-    # при подключении контакты удаляются, а затем добавляются с сервера
-    # поэтому для проверки сами вручную добавляем контакт для списка удаления
-    database.add_contact('test2')
-    print(database.get_contacts())
-    window.selector.addItems(sorted(database.get_contacts()))
+    app = QApplication([])
+    window = DelContactDialog(None)
     window.show()
     app.exec_()
