@@ -132,7 +132,7 @@ class ServerStorage:
 
     def user_login(self, username, ip_address, port, key):
         '''
-        Метод выполняющийся при входе пользователя, записывает в базу факт входа
+        Метод выполняющийся при входе пользователя, записывает в базу факт входа.
         Обновляет открытый ключ пользователя при его изменении.
         '''
         # Запрос в таблицу пользователей на наличие там пользователя с таким
@@ -147,7 +147,7 @@ class ServerStorage:
             user.last_login = datetime.datetime.now()
             if user.pubkey != key:
                 user.pubkey = key
-        # Если нету, то генерируем исключение
+        # Если нет, то генерируем исключение
         else:
             raise ValueError('Пользователь не зарегистрирован.')
 
@@ -162,7 +162,7 @@ class ServerStorage:
             user.id, datetime.datetime.now(), ip_address, port)
         self.session.add(history)
 
-        # Сохрраняем изменения
+        # Сохраняем изменения
         self.session.commit()
 
     def add_user(self, name, passwd_hash):
@@ -191,7 +191,7 @@ class ServerStorage:
         self.session.commit()
 
     def get_hash(self, name):
-        '''Метод получения хэша пароля пользователя.'''
+        '''Метод получения хеша пароля пользователя.'''
         user = self.session.query(self.AllUsers).filter_by(name=name).first()
         return user.passwd_hash
 
@@ -322,7 +322,7 @@ class ServerStorage:
 
     def get_contacts(self, username):
         '''Метод возвращающий список контактов пользователя.'''
-        # Запрашивааем указанного пользователя
+        # Запрашиваем указанного пользователя
         user = self.session.query(self.AllUsers).filter_by(name=username).one()
 
         # Запрашиваем его список контактов
